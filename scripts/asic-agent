@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# The command-line entry point with the environment loaded:
+#   asic-agent check | models ... | run ... | kb-search "..."
+# (installed as /usr/local/bin/asic-agent in the container image)
+set -euo pipefail
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+cd "$here"
+source scripts/env.sh
+exec python3 -m asic_agent "$@"

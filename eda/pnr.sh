@@ -24,6 +24,14 @@ sed -e "s/@DESIGN_TOP@/$TOP/g" -e "s/@CLOCK_PORT@/$CLOCK_PORT/g" \
     "$PROJECT_ROOT/eda/pnr/constraint.sdc" > "$out/constraint.sdc"
 c_rtl="/work/$(rel "$rtl")"
 
+if [ -n "${ORFS_NATIVE:-}" ]; then
+  # Inside the container image (built on the ORFS image): run the flow directly.
+  ( set +u; source /OpenROAD-flow-scripts/env.sh >/dev/null; set -e
+    cd /OpenROAD-flow-scripts/flow
+    DESIGN_TOP="$TOP" make DESIGN_CONFIG="$PROJECT_ROOT/eda/pnr/config.mk" RTL_FILE="$rtl" \
+         RUN_SDC="$out/constraint.sdc" WORK_HOME="$out" FLOW_VARIANT=base finish
+  ) > "$out/pnr.log" 2>&1 || { echo "pnr: FAIL — see $out/pnr.log"; tail -20 "$out/pnr.log"; exit 1; }
+else
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
   -e DESIGN_TOP="$TOP" \
   -v "$PROJECT_ROOT:/work" "$ORFS_IMAGE" bash -c "
@@ -33,6 +41,7 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
     make DESIGN_CONFIG=/work/eda/pnr/config.mk RTL_FILE='$c_rtl' RUN_SDC='$c_out/constraint.sdc' \
          WORK_HOME='$c_out' FLOW_VARIANT=base finish
   " > "$out/pnr.log" 2>&1 || { echo "pnr: FAIL — see $out/pnr.log"; tail -20 "$out/pnr.log"; exit 1; }
+fi
 
 python3 "$PROJECT_ROOT/eda/pnr_summary.py" "$out" > "$out/pnr_summary.json"
 python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); print("pnr: PASS (" + ", ".join(f"{k}={v}" for k,v in s.items() if k!="reports") + ")")' "$out/pnr_summary.json"

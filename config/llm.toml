@@ -6,6 +6,8 @@
 # Switch provider/model without editing this file:
 #   LLM_PROVIDER=anthropic LLM_MODEL=claude-sonnet-5-5 scripts/run_flow.sh ...
 #   EMBEDDING_PROVIDER=openai EMBEDDING_MODEL=text-embedding-3-small
+# Only a key is required: if the [chat] provider below has no key, the first
+# provider that has one is used with the first model in its `models` list.
 # A new provider that speaks an existing wire format ("openai" or "anthropic")
 # is one [providers.<name>] table. Set up keys and roles with:
 #   python3 -m asic_agent models                  # status
@@ -50,7 +52,7 @@ reasoning_effort = "low"
 kind = "openai"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
-models = []
+models = ["gpt-4.1", "gpt-4.1-mini", "o4-mini"]
 
 [providers.anthropic]
 kind = "anthropic"
@@ -62,13 +64,13 @@ models = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"]
 kind = "openai"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 api_key_env = "GEMINI_API_KEY"
-models = []
+models = ["gemini-2.5-pro", "gemini-2.5-flash"]
 
 [providers.mistral]
 kind = "openai"
 base_url = "https://api.mistral.ai/v1"
 api_key_env = "MISTRAL_API_KEY"
-models = []
+models = ["mistral-large-latest", "codestral-latest"]
 
 [providers.openrouter]
 kind = "openai"
@@ -80,7 +82,7 @@ models = []
 kind = "openai"
 base_url = "https://api.deepseek.com/v1"
 api_key_env = "DEEPSEEK_API_KEY"
-models = []
+models = ["deepseek-chat", "deepseek-reasoner"]
 
 [providers.together]
 kind = "openai"

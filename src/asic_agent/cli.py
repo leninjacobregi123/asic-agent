@@ -75,7 +75,12 @@ def _check() -> int:
         line(False, "config/project.json", f"{type(e).__name__}: {e}")
 
     print("Tools (after `source scripts/env.sh`)")
+    native = bool(os.environ.get("ORFS_NATIVE"))      # inside the container image
     for tool in ("verilator", "yosys", "docker", "patch"):
+        if tool == "docker" and native:
+            orfs = "/OpenROAD-flow-scripts/tools/install/OpenROAD/bin/openroad"
+            line(os.path.exists(orfs), "openroad (in image)", orfs)
+            continue
         line(shutil.which(tool) is not None, tool, shutil.which(tool) or "not on PATH")
     for var in ("LIB_TT", "BUILD_DIR", "ORFS_IMAGE", "TOP"):
         line(bool(os.environ.get(var)), f"${var}", "set" if os.environ.get(var) else "not set")

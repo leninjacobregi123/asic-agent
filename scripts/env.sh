@@ -17,7 +17,7 @@ export PDK_ROOT="${PDK_ROOT:-$HOME/eda/pdk}"
 export PDK="sky130A"
 export PDK_VERSION="1689ac3f2dc763876eaf967227c7dfe831b031ae"
 export STD_CELL_LIB="sky130_fd_sc_hd"
-export LIB_TT="$PDK_ROOT/ciel/sky130/versions/$PDK_VERSION/$PDK/libs.ref/$STD_CELL_LIB/lib/${STD_CELL_LIB}__tt_025C_1v80.lib"
+export LIB_TT="${LIB_TT:-$PDK_ROOT/ciel/sky130/versions/$PDK_VERSION/$PDK/libs.ref/$STD_CELL_LIB/lib/${STD_CELL_LIB}__tt_025C_1v80.lib}"
 
 # GNU Make (used by Verilator) refuses to build in a directory whose path
 # contains a space, so build products live outside the repository.

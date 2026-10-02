@@ -189,7 +189,17 @@
        }
       }
      }
-    }
+    },
+    "parameters": [
+     {
+      "name": "deep",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      },
+      "description": "1: also require the knowledge service (503 if it is down)"
+     }
+    ]
    }
   },
   "/overview": {
@@ -791,6 +801,86 @@
     "responses": {
      "200": {
       "description": "ok"
+     }
+    }
+   }
+  },
+  "/models/key": {
+   "post": {
+    "summary": "Store a provider API key on the server (never returned)",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "provider",
+         "key"
+        ],
+        "properties": {
+         "provider": {
+          "type": "string"
+         },
+         "key": {
+          "type": "string",
+          "writeOnly": true
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "stored"
+     },
+     "400": {
+      "description": "unknown provider or malformed key"
+     }
+    }
+   }
+  },
+  "/models/use": {
+   "post": {
+    "summary": "Choose the model for a role",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "role",
+         "provider",
+         "model"
+        ],
+        "properties": {
+         "role": {
+          "type": "string",
+          "enum": [
+           "chat",
+           "fallback",
+           "embeddings"
+          ]
+         },
+         "provider": {
+          "type": "string"
+         },
+         "model": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "updated"
+     },
+     "400": {
+      "description": "invalid choice"
      }
     }
    }

@@ -16,7 +16,10 @@ adapter class in providers.py registered in ADAPTERS.
 from __future__ import annotations
 
 import os
-import tomllib
+try:
+    import tomllib                     # Python 3.11+
+except ModuleNotFoundError:            # 3.10 (e.g. the OpenROAD container image)
+    import tomli as tomllib            # type: ignore[no-redef]
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -123,9 +126,18 @@ def load(path: Path | None = None) -> LLMConfig:
 
     chat_s = raw.get("chat") or {}
     fb = chat_s.get("fallback") or {}
+    chat = _select(providers, chat_s, "LLM_PROVIDER", "LLM_MODEL", "chat", allow_none=True)
+    if (chat is None or not chat.provider.has_key()) and not os.environ.get("LLM_PROVIDER"):
+        # The configured provider has no key: use the first provider (in file
+        # order) that has a key and a recommended model, so adding any one key
+        # is enough to run. Explicit choices ($LLM_PROVIDER, `models use`) win.
+        auto = next((Selection(p, p.models[0]) for p in providers.values()
+                     if p.has_key() and p.models), None)
+        if auto:
+            chat = auto
     return LLMConfig(
         providers=providers,
-        chat=_select(providers, chat_s, "LLM_PROVIDER", "LLM_MODEL", "chat", allow_none=True),
+        chat=chat,
         fallback=_select(providers, fb, "LLM_FALLBACK_PROVIDER", "LLM_FALLBACK_MODEL",
                          "chat fallback", allow_none=True),
         embeddings=_select(providers, raw.get("embeddings") or {}, "EMBEDDING_PROVIDER",

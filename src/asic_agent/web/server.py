@@ -264,7 +264,10 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if parts[:1] == ["api"] and parts[1:] == ["health"]:
-            return self.send_json({"ok": True, "active": active_run()})
+            # ?deep=1 (the container health check) also requires the knowledge service.
+            kb = knowledge.available() if q.get("deep") else None
+            ok = kb is not False
+            return self.send_json({"ok": ok, "active": active_run(), "knowledge": kb}, 200 if ok else 503)
         if parts[:1] == ["api"] and not self.authorized():
             return self.error(401, "not signed in: open the link with ?token=… once")
         try:
@@ -383,6 +386,27 @@ class Handler(BaseHTTPRequestHandler):
                         not re.fullmatch(r"[A-Za-z0-9._:/@+-]{1,120}", model):
                     return self.error(400, "invalid provider or model name")
                 return self.send_json(manage.test(prov, model, bool(b.get("embeddings"))))
+            if parts == ["api", "models", "key"]:
+                # The key is stored server-side (secrets file, mode 600) and never
+                # returned or logged; only the provider name is.
+                from ..llm import manage
+                prov, key = str(b.get("provider", "")), str(b.get("key", ""))
+                if not re.fullmatch(r"[A-Za-z0-9._-]{1,40}", prov) or not (10 <= len(key) <= 400) \
+                        or re.search(r"\s", key):
+                    return self.error(400, "provider name or key format not accepted")
+                try:
+                    manage.save_key(prov, key)
+                except LLMConfigError as e:
+                    return self.error(400, str(e))
+                _log.info("API key saved for provider %s", prov)
+                return self.send_json({"ok": True, "provider": prov})
+            if parts == ["api", "models", "use"]:
+                from ..llm import manage
+                try:
+                    manage.set_role(str(b.get("role", "")), str(b.get("provider", "")), str(b.get("model", "")))
+                except LLMConfigError as e:
+                    return self.error(400, str(e))
+                return self.send_json({"ok": True, **llm_status()})
             if parts == ["api", "knowledge", "reindex"]:
                 if active_run():
                     return self.error(409, "wait for the current run to finish")
@@ -544,9 +568,16 @@ def main() -> int:
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8080"))
     if host not in LOOPBACK and not access_token():
-        _log.error("refusing to listen on %s without ASIC_AGENT_TOKEN: the app starts runs "
-                   "and edits the project. Set a long random token, or keep HOST=127.0.0.1.", host)
-        return 2
+        if os.environ.get("ASIC_AGENT_PUBLISHED_LOCALLY") == "1":
+            # Docker: the app must listen on all interfaces inside the container,
+            # and docker-compose.yml publishes the port on the host's loopback
+            # only. That setting must go if the port is ever published wider.
+            _log.warning("no ASIC_AGENT_TOKEN: relying on the port being published on the "
+                         "host's loopback only (docker-compose.yml)")
+        else:
+            _log.error("refusing to listen on %s without ASIC_AGENT_TOKEN: the app starts runs "
+                       "and edits the project. Set a long random token, or keep HOST=127.0.0.1.", host)
+            return 2
     srv = ThreadingHTTPServer((host, port), Handler)
     _log.info("Flow Console on http://%s:%d%s  (Ctrl-C to stop)", host, port,
               "  — sign in once with /?token=…" if access_token() else "")

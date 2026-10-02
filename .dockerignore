@@ -1,0 +1,10 @@
+.git
+.github
+runs
+data/index
+data/knowledge/patterns
+**/__pycache__
+*.pyc
+.env
+*.env
+!.env.example

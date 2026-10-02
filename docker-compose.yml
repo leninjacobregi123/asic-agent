@@ -1,0 +1,45 @@
+# ASIC agent — the whole application with one command:
+#
+#   docker compose up -d --build
+#   open http://localhost:8080        then add a model provider key on the Models page
+#
+# One container runs everything: the web app (frontend + REST API), the
+# orchestrator and agents, the knowledge (RAG) service, and the EDA tools
+# (Verilator, Yosys, OpenROAD). Models are called through provider APIs; the
+# only thing to supply is a key, either on the Models page or in an optional
+# .env file (see .env.example).
+#
+# Security: the port is published on this machine's loopback only, which is
+# why no access token is needed. To serve it to others, set ASIC_AGENT_TOKEN
+# in .env, remove ASIC_AGENT_PUBLISHED_LOCALLY below, and put a TLS reverse
+# proxy in front (docs/DEPLOYMENT.md).
+
+services:
+  asic-agent:
+    build: .
+    image: asic-agent:1.0.0
+    container_name: asic-agent
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ASIC_AGENT_PUBLISHED_LOCALLY: "1"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - config:/app/config                       # llm.toml, project.json (seeded from the image)
+      - data:/app/data                           # knowledge record and index
+      - designs:/app/designs                     # designs worked on (add yours here)
+      - runs:/app/runs                           # run records, netlists, layouts
+      - secrets:/home/asic/.config/asic-agent    # provider keys (file mode 600)
+    cpus: "4"
+    mem_limit: 8g
+
+volumes:
+  config:
+  data:
+  designs:
+  runs:
+  secrets:

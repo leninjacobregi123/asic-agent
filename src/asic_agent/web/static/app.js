@@ -652,18 +652,34 @@ async function modelsPage(main) {
             <input class="mono" list="ml-${esc(p.provider)}" data-prov="${esc(p.provider)}" placeholder="model name" style="width:19ch" value="${esc(testable(p)[0] || "")}">
             <datalist id="ml-${esc(p.provider)}">${testable(p).map((m) => `<option value="${esc(m)}">`).join("")}</datalist>
             <button class="btn small" data-test="${esc(p.provider)}">Test</button><span class="muted" data-out="${esc(p.provider)}"></span></div>`
-          : `<span class="muted">add a key first</span>`}</td></tr>`).join("")}
+          : `<div class="row" style="gap:6px;flex-wrap:wrap"><input type="password" autocomplete="off" data-key="${esc(p.provider)}" placeholder="paste API key" style="width:19ch">
+              <button class="btn small primary" data-save="${esc(p.provider)}">Save key</button><span class="muted" data-kout="${esc(p.provider)}"></span></div>`}
+          ${p.has_key ? `<div style="margin-top:6px"><button class="btn small" data-use="${esc(p.provider)}">Use for chat</button></div>` : ""}</td></tr>`).join("")}
     </tbody></table></section>
     <section class="panel pad"><div class="prose">
       <h2>Adding a provider key and choosing models</h2>
-      <p>Keys are never entered in the browser. On the server, in the project folder:</p>
+      <p>Paste a key above: it is stored on the server (readable only by the app's user) and never shown again.
+      <b>Use for chat</b> makes the model in the box the one all agents use. The same from a terminal:</p>
       <pre class="mono" style="white-space:pre-wrap">python3 -m asic_agent models add-key openai      # key typed, not shown
 python3 -m asic_agent models available openai    # models this key can use
 python3 -m asic_agent models test openai gpt-4.1
 python3 -m asic_agent models use chat openai gpt-4.1   # chat | fallback | embeddings</pre>
-      <p>The key is stored in <code>~/.config/asic-agent/secrets.env</code> on the server (readable only by its owner), never in the project.</p>
+      <p>Keys are stored in <code>~/.config/asic-agent/secrets.env</code> on the server, never in the project.</p>
       <p>A provider not listed here is one table in <code>config/llm.toml</code> if it speaks the OpenAI or Anthropic API
       (Azure OpenAI included; see the template there). Every run records which provider and model answered.</p></div></section>`;
+  main.querySelectorAll("[data-save]").forEach((b) => b.addEventListener("click", async () => {
+    const prov = b.dataset.save, inp = main.querySelector(`input[data-key="${CSS.escape(prov)}"]`);
+    const out = main.querySelector(`[data-kout="${CSS.escape(prov)}"]`);
+    b.disabled = true;
+    try { await api("/api/models/key", { provider: prov, key: inp.value.trim() }); inp.value = ""; toast(`Key saved for ${prov}`); await refreshOverview(); modelsPage(main); }
+    catch (e) { out.textContent = e.message; b.disabled = false; }
+  }));
+  main.querySelectorAll("[data-use]").forEach((b) => b.addEventListener("click", async () => {
+    const prov = b.dataset.use, model = main.querySelector(`input[data-prov="${CSS.escape(prov)}"]`)?.value.trim();
+    if (!model) { toast("enter a model name first"); return; }
+    try { await api("/api/models/use", { role: "chat", provider: prov, model }); toast(`Agents now use ${prov} · ${model}`); await refreshOverview(); modelsPage(main); }
+    catch (e) { toast(e.message); }
+  }));
   main.querySelectorAll("[data-test]").forEach((b) => b.addEventListener("click", async () => {
     const prov = b.dataset.test, out = main.querySelector(`[data-out="${CSS.escape(prov)}"]`);
     const model = main.querySelector(`input[data-prov="${CSS.escape(prov)}"]`).value.trim();
