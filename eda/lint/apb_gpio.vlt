@@ -1,0 +1,28 @@
+`verilator_config
+// Lint waivers for the unmodified upstream apb_gpio baseline.
+//
+// Every waiver names one file and one warning and says why it is not a bug.
+// A new warning that is not listed here fails lint — that is intended. Do not
+// widen these to whole-file or wildcard waivers.
+
+// `genvar i` at module scope is shadowed by `for (int i ...)` loops inside
+// always blocks. Each loop's `i` is local; no loop reads the genvar.
+lint_off -rule VARHIDDEN -file "*/apb_gpio.sv" -match "*'i'"
+
+// Write-decode case (line ~276) has no default. Every signal it drives is
+// assigned a default value immediately before the case, so an unmatched
+// address writes nothing — the intended behaviour, and no latch is inferred
+// (confirmed by Yosys proc_dlatch).
+lint_off -rule CASEINCOMPLETE -file "*/apb_gpio.sv"
+
+// Port name `interrupt` collides with a C++ keyword. Verilator mangles it in
+// the generated model; harmless, and renaming would change the IP interface.
+lint_off -rule SYMRSVDWORD -file "*/apb_gpio.sv" -match "*'interrupt'"
+
+// DFT clock-gate enable is a port for integration but unused in this RTL
+// (the clock enables are functional, not DFT-gated).
+lint_off -rule UNUSEDSIGNAL -file "*/apb_gpio.sv" -match "*'dft_cg_enable_i'"
+
+// Register offsets are word-aligned in a 32-word window: only PADDR[6:2] is
+// decoded. Upper and byte-offset address bits are ignored by design.
+lint_off -rule UNUSEDSIGNAL -file "*/apb_gpio.sv" -match "*'PADDR'*"

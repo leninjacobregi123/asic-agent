@@ -1,0 +1,105 @@
+# LLM and embedding providers. No secrets here: each provider names the
+# environment variable that holds its key. Keys are loaded from the process
+# environment, ~/.config/asic-agent/secrets.env, or a git-ignored .env file
+# (see .env.example).
+#
+# Switch provider/model without editing this file:
+#   LLM_PROVIDER=anthropic LLM_MODEL=claude-sonnet-5-5 scripts/run_flow.sh ...
+#   EMBEDDING_PROVIDER=openai EMBEDDING_MODEL=text-embedding-3-small
+# A new provider that speaks an existing wire format ("openai" or "anthropic")
+# is one [providers.<name>] table. Set up keys and roles with:
+#   python3 -m asic_agent models                  # status
+#   python3 -m asic_agent models add-key openai   # key typed, not echoed
+#   python3 -m asic_agent models use chat openai gpt-4.1 Check a new chat model with
+# `python3 -m asic_agent models test PROVIDER MODEL` before using it.
+
+[chat]
+provider = "groq"
+model = "qwen/qwen3.8-27b"     # measured best for diagnosis and RTL repair (2 Oct 2026)
+min_tokens = 4096              # floor for answer budgets: reasoning models think first
+timeout_s = 300
+
+# Used when the primary's daily quota is spent mid-run (the switch is recorded).
+[chat.fallback]
+provider = "groq"
+model = "openai/gpt-oss-20b"
+
+# Vectors for the knowledge base. provider = "none": keyword-only retrieval.
+# Groq has no embeddings API; set a provider that does and rebuild the index.
+[embeddings]
+provider = "none"
+model = ""
+# provider = "openai"
+# model = "text-embedding-3-small"
+
+[providers.groq]
+kind = "openai"
+base_url = "https://api.groq.com/openai/v1"
+api_key_env = "GROQ_API_KEY"
+models = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+
+# gpt-oss models reason before answering; at "medium" (the default) the
+# 20b model used its whole budget thinking on RTL edits (2 Oct 2026).
+[providers.groq.model_params."openai/gpt-oss-20b"]
+reasoning_effort = "low"
+
+[providers.groq.model_params."openai/gpt-oss-120b"]
+reasoning_effort = "low"
+
+[providers.openai]
+kind = "openai"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+models = []
+
+[providers.anthropic]
+kind = "anthropic"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
+models = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"]
+
+[providers.gemini]
+kind = "openai"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+api_key_env = "GEMINI_API_KEY"
+models = []
+
+[providers.mistral]
+kind = "openai"
+base_url = "https://api.mistral.ai/v1"
+api_key_env = "MISTRAL_API_KEY"
+models = []
+
+[providers.openrouter]
+kind = "openai"
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+models = []
+
+[providers.deepseek]
+kind = "openai"
+base_url = "https://api.deepseek.com/v1"
+api_key_env = "DEEPSEEK_API_KEY"
+models = []
+
+[providers.together]
+kind = "openai"
+base_url = "https://api.together.xyz/v1"
+api_key_env = "TOGETHER_API_KEY"
+models = []
+
+[providers.fireworks]
+kind = "openai"
+base_url = "https://api.fireworks.ai/inference/v1"
+api_key_env = "FIREWORKS_API_KEY"
+models = []
+
+# Azure OpenAI: one table per deployment; the model name is the deployment.
+# [providers.azure]
+# kind = "openai"
+# base_url = "https://<resource>.openai.azure.com/openai/deployments/<deployment>"
+# api_key_env = "AZURE_OPENAI_API_KEY"
+# auth_header = "api-key"
+# auth_prefix = ""
+# query = { "api-version" = "2024-10-21" }
+# models = ["<deployment>"]

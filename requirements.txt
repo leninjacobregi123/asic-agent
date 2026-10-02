@@ -1,0 +1,5 @@
+# Run-time dependency (the knowledge-base vector store). Everything else is stdlib.
+numpy>=1.24,<3      # tested with 1.26.4
+
+# Optional: converting spreadsheet specifications to Markdown.
+# openpyxl>=3.1

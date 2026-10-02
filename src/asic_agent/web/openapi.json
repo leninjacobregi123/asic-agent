@@ -1,0 +1,799 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "ASIC agent pipeline API",
+  "version": "1.0.0",
+  "description": "Drive the pipeline from other systems: submit a change request or a verification run, answer the approval and decision gates, and read results. Every EDA tool run and every spec decision waits at a gate until answered (or is answered automatically when mode is 'auto'; each answer is recorded). One run at a time per server. All paths are under /api/v1 (the browser app uses the same handlers under /api)."
+ },
+ "servers": [
+  {
+   "url": "/api/v1"
+  }
+ ],
+ "security": [
+  {
+   "bearer": []
+  },
+  {
+   "cookie": []
+  }
+ ],
+ "components": {
+  "securitySchemes": {
+   "bearer": {
+    "type": "http",
+    "scheme": "bearer",
+    "description": "ASIC_AGENT_TOKEN. Required when the server sets one (always when it listens beyond localhost)."
+   },
+   "cookie": {
+    "type": "apiKey",
+    "in": "cookie",
+    "name": "asic_token",
+    "description": "Set by visiting /?token=<token> once (browser use)."
+   }
+  },
+  "schemas": {
+   "Error": {
+    "type": "object",
+    "properties": {
+     "error": {
+      "type": "string"
+     }
+    }
+   },
+   "Started": {
+    "type": "object",
+    "properties": {
+     "ok": {
+      "type": "boolean"
+     },
+     "run_id": {
+      "type": "string"
+     }
+    }
+   },
+   "RunSummary": {
+    "type": "object",
+    "properties": {
+     "run_id": {
+      "type": "string"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "request",
+       "verification"
+      ]
+     },
+     "stage": {
+      "type": "string",
+      "description": "current stage, or the end state: done | failed (needs a person) | quota_stopped | error | stopped"
+     },
+     "running": {
+      "type": "boolean"
+     },
+     "started": {
+      "type": "string"
+     },
+     "wall_seconds": {
+      "type": [
+       "number",
+       "null"
+      ]
+     },
+     "llm": {
+      "type": "string"
+     },
+     "tests_passed": {
+      "type": "integer"
+     },
+     "tests_total": {
+      "type": "integer"
+     },
+     "signoff_pass": {
+      "type": [
+       "boolean",
+       "null"
+      ]
+     },
+     "setup_wns_ns": {
+      "type": [
+       "number",
+       "null"
+      ]
+     }
+    }
+   },
+   "Gate": {
+    "type": [
+     "object",
+     "null"
+    ],
+    "description": "Present while the run waits for an answer.",
+    "properties": {
+     "id": {
+      "type": "integer",
+      "description": "send back in POST /runs/{run_id}/gate"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "approve",
+       "choose"
+      ]
+     },
+     "title": {
+      "type": "string"
+     },
+     "action": {
+      "type": "string",
+      "description": "kind 'approve': the tool run waiting for approval"
+     },
+     "options": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "string"
+      },
+      "description": "kind 'choose': option key -> text"
+     },
+     "recommended": {
+      "type": "string",
+      "description": "kind 'choose': the option the pipeline recommends"
+     },
+     "context": {
+      "type": "object"
+     },
+     "asked": {
+      "type": "string"
+     }
+    }
+   },
+   "ModelChoice": {
+    "type": "object",
+    "properties": {
+     "provider": {
+      "type": "string",
+      "description": "a provider in config/llm.toml with a key set"
+     },
+     "model": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ },
+ "paths": {
+  "/health": {
+   "get": {
+    "summary": "Liveness; no token needed",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "ok",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "ok": {
+           "type": "boolean"
+          },
+          "active": {
+           "type": [
+            "string",
+            "null"
+           ]
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/overview": {
+   "get": {
+    "summary": "Project, models, scenarios, toolchain and all runs",
+    "responses": {
+     "200": {
+      "description": "ok"
+     }
+    }
+   }
+  },
+  "/runs": {
+   "get": {
+    "summary": "All runs, newest first",
+    "responses": {
+     "200": {
+      "description": "ok",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "runs": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/RunSummary"
+           }
+          },
+          "active": {
+           "type": [
+            "string",
+            "null"
+           ]
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "summary": "Start a verification run (diagnose-and-route on test failures)",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+         },
+         "scenario": {
+          "type": "string",
+          "description": "'clean' or a fault_scenarios id from the project (see /overview)"
+         },
+         "base_run": {
+          "type": "string",
+          "description": "start from a signed-off run's RTL and spec"
+         },
+         "llm": {
+          "type": "string",
+          "enum": [
+           "api",
+           "none"
+          ],
+          "description": "'none': rule-based diagnosis only"
+         },
+         "provider": {
+          "type": "string"
+         },
+         "model": {
+          "type": "string"
+         },
+         "mode": {
+          "type": "string",
+          "enum": [
+           "manual",
+           "auto"
+          ],
+          "description": "auto: tool runs approved, decisions take the recommended option; every answer recorded"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "started",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Started"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "a run is in progress"
+     }
+    }
+   }
+  },
+  "/requests": {
+   "post": {
+    "summary": "Start a change request (plain-language description of the change)",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "request"
+        ],
+        "properties": {
+         "request": {
+          "type": "string",
+          "minLength": 15,
+          "maxLength": 4000
+         },
+         "run_id": {
+          "type": "string"
+         },
+         "base_run": {
+          "type": "string"
+         },
+         "provider": {
+          "type": "string"
+         },
+         "model": {
+          "type": "string"
+         },
+         "mode": {
+          "type": "string",
+          "enum": [
+           "manual",
+           "auto"
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "started",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Started"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "invalid input"
+     },
+     "409": {
+      "description": "a run is in progress"
+     }
+    }
+   }
+  },
+  "/runs/{run_id}": {
+   "get": {
+    "summary": "Full run record: stages, tests, edits, signoff, history, and the open gate",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "ok",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "result": {
+           "type": "string"
+          },
+          "running": {
+           "type": "boolean"
+          },
+          "gate": {
+           "$ref": "#/components/schemas/Gate"
+          },
+          "signoff": {
+           "type": "object"
+          },
+          "final_diff": {
+           "type": "string"
+          },
+          "history": {
+           "type": "array"
+          }
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "no such run"
+     }
+    }
+   }
+  },
+  "/runs/{run_id}/gate": {
+   "post": {
+    "summary": "Answer the open gate",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "id"
+        ],
+        "properties": {
+         "id": {
+          "type": "integer",
+          "description": "gate.id from GET /runs/{run_id}"
+         },
+         "approve": {
+          "type": "boolean",
+          "description": "for kind 'approve'"
+         },
+         "choice": {
+          "type": "string",
+          "description": "an option key, for kind 'choose'"
+         },
+         "by": {
+          "type": "string",
+          "description": "who answered (recorded)"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "recorded"
+     },
+     "409": {
+      "description": "nothing waiting, or already answered"
+     }
+    }
+   }
+  },
+  "/runs/{run_id}/resume": {
+   "post": {
+    "summary": "Continue a run that needs a person, with a unified diff against its RTL",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "diff"
+        ],
+        "properties": {
+         "diff": {
+          "type": "string"
+         },
+         "mode": {
+          "type": "string",
+          "enum": [
+           "manual",
+           "auto"
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "resumed"
+     },
+     "400": {
+      "description": "diff does not apply"
+     },
+     "409": {
+      "description": "run not waiting for a person"
+     }
+    }
+   }
+  },
+  "/runs/{run_id}/stop": {
+   "post": {
+    "summary": "Stop the active run (recorded as 'stopped')",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "stopping"
+     },
+     "409": {
+      "description": "not active"
+     }
+    }
+   }
+  },
+  "/runs/{run_id}/console": {
+   "get": {
+    "summary": "Console text from a byte offset (poll with the returned offset)",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "ok",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "text": {
+           "type": "string"
+          },
+          "offset": {
+           "type": "integer"
+          },
+          "running": {
+           "type": "boolean"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/runs/{run_id}/file": {
+   "get": {
+    "summary": "A text artifact inside the run folder (diffs, RTL, spec, logs)",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "path",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "file content (text/plain)"
+     },
+     "404": {
+      "description": "not available"
+     }
+    }
+   }
+  },
+  "/project": {
+   "get": {
+    "summary": "The active project (config/project.json)",
+    "responses": {
+     "200": {
+      "description": "ok"
+     }
+    }
+   },
+   "post": {
+    "summary": "Replace the active project; validated, then the knowledge base is rebuilt",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "text"
+        ],
+        "properties": {
+         "text": {
+          "type": "string",
+          "description": "the project JSON as text"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "saved"
+     },
+     "400": {
+      "description": "invalid project"
+     },
+     "409": {
+      "description": "a run is in progress"
+     }
+    }
+   }
+  },
+  "/knowledge/status": {
+   "get": {
+    "summary": "Index size, retrieval mode, confirmed patterns",
+    "responses": {
+     "200": {
+      "description": "ok"
+     }
+    }
+   }
+  },
+  "/knowledge/search": {
+   "get": {
+    "summary": "Search the knowledge base",
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "k",
+      "in": "query",
+      "schema": {
+       "type": "integer",
+       "maximum": 20
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "hits"
+     }
+    }
+   }
+  },
+  "/knowledge/record": {
+   "get": {
+    "summary": "The confirmed-fix record the agents learn from",
+    "responses": {
+     "200": {
+      "description": "ok"
+     }
+    }
+   }
+  },
+  "/knowledge/reindex": {
+   "post": {
+    "summary": "Rebuild the knowledge index",
+    "responses": {
+     "200": {
+      "description": "index metadata"
+     }
+    }
+   }
+  },
+  "/models": {
+   "get": {
+    "summary": "Providers, key presence (never the key), roles, selectable models",
+    "responses": {
+     "200": {
+      "description": "ok"
+     }
+    }
+   }
+  },
+  "/models/test": {
+   "post": {
+    "summary": "Send one small request to a provider/model",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "allOf": [
+         {
+          "$ref": "#/components/schemas/ModelChoice"
+         },
+         {
+          "type": "object",
+          "properties": {
+           "embeddings": {
+            "type": "boolean"
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "result",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "ok": {
+           "type": "boolean"
+          },
+          "latency_ms": {
+           "type": "integer"
+          },
+          "error": {
+           "type": "string",
+           "enum": [
+            "auth",
+            "quota",
+            "not_found",
+            "network",
+            "config",
+            "error"
+           ]
+          },
+          "detail": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/openapi.json": {
+   "get": {
+    "summary": "This document",
+    "responses": {
+     "200": {
+      "description": "ok"
+     }
+    }
+   }
+  }
+ }
+}

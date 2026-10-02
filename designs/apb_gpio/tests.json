@@ -1,0 +1,169 @@
+{
+ "_comment": [
+  "Diagnosis metadata for the tests in designs/apb_gpio/tb/tb_apb_gpio.sv.",
+  "",
+  "'spec_ref' names the heading in designs/apb_gpio/docs/apb_gpio_regs.md that states",
+  "the behaviour; 'pass_condition' restates the check in the spec's own words.",
+  "src/asic_agent/agents/diagnose.py uses both: if the spec never discusses what the test",
+  "checks, the failure is a spec_ambiguity, not an implementation_bug.",
+  "",
+  "Ids must match the dispatcher entries in the testbench.",
+  "'observes' lists the DUT outputs the test checks, most specific first."
+ ],
+ "target_block": "apb_gpio",
+ "spec_file": "designs/apb_gpio/docs/apb_gpio_regs.md",
+ "smoke_set": [
+  "reset_values",
+  "dir_rw",
+  "out_set_clr",
+  "int_rise"
+ ],
+ "test_cases": [
+  {
+   "id": "reset_values",
+   "description": "Every register reads its default value 0x0 after reset",
+   "spec_ref": "Register map",
+   "pass_condition": "PADDIR, GPIOEN, PADOUT, INTEN, INTTYPE, INTSTATUS and PADCFG all read reset value 0x0",
+   "observes": [
+    "PRDATA"
+   ]
+  },
+  {
+   "id": "dir_rw",
+   "description": "PADDIR is R/W and drives the pad direction",
+   "spec_ref": "PADDIR_00_31",
+   "pass_condition": "PADDIR reads back the written value; bit[i]=1 is output mode for GPIO[i]",
+   "observes": [
+    "PRDATA",
+    "gpio_dir"
+   ]
+  },
+  {
+   "id": "out_rw",
+   "description": "PADOUT is R/W and drives the output data",
+   "spec_ref": "PADOUT_00_31",
+   "pass_condition": "PADOUT reads back the written value and DATA_OUT[i] is the output data on GPIO[i]",
+   "observes": [
+    "PRDATA",
+    "gpio_out"
+   ]
+  },
+  {
+   "id": "out_set_clr",
+   "description": "PADOUTSET sets and PADOUTCLR clears individual PADOUT bits",
+   "spec_ref": "PADOUTSET_00_31",
+   "pass_condition": "PADOUTSET bit[i]=1 sets GPIO[i]; PADOUTCLR bit[i]=1 clears GPIO[i]; bit=0 no change",
+   "observes": [
+    "PRDATA",
+    "gpio_out"
+   ]
+  },
+  {
+   "id": "cfg_rw",
+   "description": "INTTYPE and PADCFG are R/W with per-pad field packing",
+   "spec_ref": "PADCFG_00_07",
+   "pass_condition": "INTTYPE and PADCFG read back the written value for each GPIO",
+   "observes": [
+    "PRDATA",
+    "gpio_padcfg"
+   ]
+  },
+  {
+   "id": "padin_sync",
+   "description": "Pad input appears in PADIN within 4 cycles when GPIOEN is set",
+   "spec_ref": "PADIN_00_31",
+   "pass_condition": "With GPIOEN set, DATA_IN[i] input data of GPIO[i] appears in PADIN within 4 cycles",
+   "observes": [
+    "PRDATA"
+   ]
+  },
+  {
+   "id": "padin_gating",
+   "description": "Input clock gating is per group of 4 GPIOs",
+   "spec_ref": "GPIOEN_00_31",
+   "pass_condition": "GPIOs are gathered by groups of 4; the clock gating of one group is done only if all 4 GPIOs are disabled in GPIOEN",
+   "observes": [
+    "PRDATA"
+   ]
+  },
+  {
+   "id": "int_rise",
+   "description": "INTTYPE 01 raises INTSTATUS on a rising edge",
+   "spec_ref": "INTTYPE_00_15",
+   "pass_condition": "INTTYPE 01 interrupt on rising edge for GPIO[i] with INTEN enable sets INTSTATUS[i]",
+   "observes": [
+    "PRDATA",
+    "interrupt"
+   ]
+  },
+  {
+   "id": "int_fall",
+   "description": "INTTYPE 00 raises INTSTATUS on a falling edge",
+   "spec_ref": "INTTYPE_00_15",
+   "pass_condition": "INTTYPE 00 interrupt on falling edge for GPIO[i] with INTEN enable sets INTSTATUS[i]",
+   "observes": [
+    "PRDATA",
+    "interrupt"
+   ]
+  },
+  {
+   "id": "int_both",
+   "description": "INTTYPE 10 raises INTSTATUS on both edges",
+   "spec_ref": "INTTYPE_00_15",
+   "pass_condition": "INTTYPE 10 interrupt on rising and falling edge for GPIO[i] with INTEN enable sets INTSTATUS[i]",
+   "observes": [
+    "PRDATA",
+    "interrupt"
+   ]
+  },
+  {
+   "id": "int_disabled",
+   "description": "INTEN bit=0 suppresses the interrupt",
+   "spec_ref": "INTEN_00_31",
+   "pass_condition": "INTEN bit[i]=0 disable interrupt for GPIO[i]: INTSTATUS[i] is not set and the interrupt line is not set",
+   "observes": [
+    "PRDATA",
+    "interrupt"
+   ]
+  },
+  {
+   "id": "intstatus_clear_on_read",
+   "description": "INTSTATUS is cleared when it is read",
+   "spec_ref": "INTSTATUS_00_31",
+   "pass_condition": "INTSTATUS[i]=1 after interrupt received on GPIO[i]; INTSTATUS is cleared when it is red",
+   "observes": [
+    "PRDATA"
+   ]
+  },
+  {
+   "id": "irq_held_until_read",
+   "description": "Interrupt line stays high until INTSTATUS is read",
+   "spec_ref": "INTSTATUS_00_31",
+   "pass_condition": "GPIO interrupt line is held asserted as a level from the edge until INTSTATUS register is red, then cleared",
+   "observes": [
+    "interrupt",
+    "PRDATA"
+   ]
+  },
+  {
+   "id": "unmapped_and_hi_bank",
+   "description": "Unmapped offsets and the 32-63 bank read 0 with PAD_NUM=32",
+   "spec_ref": "Register map",
+   "pass_condition": "Reads of unmapped offsets return 0 without error, and PADDIR_32_63 reads 0 when only 32 pads exist",
+   "observes": [
+    "PRDATA",
+    "PSLVERR"
+   ]
+  },
+  {
+   "id": "inttype_rfu_level",
+   "optional": true,
+   "description": "INTTYPE 11 (RFU) behaves as a level-high interrupt",
+   "spec_ref": "INTTYPE_00_15",
+   "pass_condition": "With INTTYPE 11 and INTEN set, INTSTATUS[i] is raised while GPIO[i] is held high, as a level-sensitive interrupt",
+   "observes": [
+    "PRDATA"
+   ]
+  }
+ ]
+}

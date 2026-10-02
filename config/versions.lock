@@ -1,0 +1,24 @@
+# Pinned toolchain for the asic-agent flow. Generated 2026-09-25.
+# scripts/env.sh reads the paths; this file is the human-readable record.
+# Changing any line means re-running flow/m1_baseline.sh and re-checking results.
+
+oss-cad-suite      20260925   https://github.com/YosysHQ/oss-cad-suite-build/releases/tag/2026-09-25
+verilator          5.053 rev v5.052-203-g420286247
+yosys              0.69+152
+iverilog           14.0
+pdk                sky130A via ciel  (ciel, see docs/SETUP.md)
+pdk-version        1689ac3f2dc763876eaf967227c7dfe831b031ae
+std-cell-lib       sky130_fd_sc_hd  (liberty corner tt_025C_1v80)
+openroad-flow     docker openroad/orfs:26Q3-705-gecb3cfdeb
+                   sha256:6da005d1c3447799f7401215174196c75ba9ec7e28417624d0c20225f85d594c
+                   (bundles OpenROAD, Yosys 0.68 for its own synth step, and the sky130hd platform)
+
+target-ip          pulp-platform/apb_gpio @ f82caeb7f7d89427f05e9af5ed31e0675efe0d83 (vendored in designs/apb_gpio)
+python             3.12.3
+py:ciel==3.0.0
+py:numpy==2.5.3
+py:openpyxl==3.1.5
+py:scikit-learn==1.9.1
+py:sentence-transformers==6.1.0
+py:torch==2.14.0
+py:transformers==5.17.0

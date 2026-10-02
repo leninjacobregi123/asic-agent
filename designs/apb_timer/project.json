@@ -1,0 +1,26 @@
+{
+ "_comment": [
+  "Second design (not from PULP), used to check the pipeline works on a block",
+  "it was not built around. To work on it: copy this file to config/project.json",
+  "(or paste it on the app's Project page), which rebuilds the knowledge base."
+ ],
+ "name": "apb_timer — second design (non-PULP)",
+ "design": {
+  "top": "apb_timer",
+  "rtl": "designs/apb_timer/rtl/apb_timer.sv",
+  "spec": "designs/apb_timer/docs/apb_timer_spec.md",
+  "clock": {"port": "HCLK", "period_ns": 10.0}
+ },
+ "knowledge_sources": [
+  {"path": "designs/apb_timer/docs", "kind": "spec"},
+  {"path": "designs/apb_timer/rtl", "kind": "rtl"},
+  {"path": "designs/apb_timer/tb", "kind": "testbench"}
+ ],
+ "testbench": {
+  "file": "designs/apb_timer/tb/tb_apb_timer.sv",
+  "regression_exclude": [],
+  "smoke": ["reset_values", "regs_rw", "count_runs", "match_wraps"],
+  "helper_tasks": ["apb_write", "apb_read", "idle", "check", "check_eq", "count_irq"],
+  "signals_note": "irq is the DUT interrupt output (irq_o); rd (logic [31:0]) and hi (int) are scratch variables declared in the testbench. Register offset constants: CTRL, PRESCALE, COMPARE, COUNT, STATUS."
+ }
+}

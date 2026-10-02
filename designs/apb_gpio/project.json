@@ -1,0 +1,61 @@
+{
+ "_comment": [
+  "The project the pipeline works on. The active one is config/project.json;",
+  "copy a design's project.json there (or paste it on the app's Project page)",
+  "to switch. Nothing else in the application is design-specific.",
+  "",
+  "Paths are relative to the repository root.",
+  "knowledge_sources: folders indexed into the knowledge base. kind is one of",
+  "  spec       requirements, register maps, design notes (.md .txt .rst)",
+  "  rtl        design source (.sv .v .svh .vh)",
+  "  testbench  verification code the test agent learns helpers from",
+  "Non-text specs (xlsx) are converted to Markdown first:",
+  "  python -m asic_agent.knowledge.xlsx_to_md <file.xlsx>",
+  "",
+  "testbench contract (see designs/apb_gpio/tb/tb_apb_gpio.sv):",
+  "  - one test per task, selected at run time with +TEST=<name>",
+  "  - each test prints 'RESULT <name> PASS' or 'RESULT <name> FAIL <reason>'",
+  "  - two marker comments: '@agent-tests' (new tasks go above it) and",
+  "    '@agent-dispatch' (new dispatcher entries go above it)",
+  "  - the helper tasks a test may call are listed in helper_tasks",
+  "testbench.metadata (optional): per-test spec_ref / pass_condition used by",
+  "  rule-based diagnosis.",
+  "fault_scenarios (optional): verification-run scenarios offered in the app.",
+  "  rtl_edit: regex 'pattern' -> 'replace' applied once to the run's RTL copy;",
+  "  enable_tests: run tests that are normally excluded."
+ ],
+ "name": "apb_gpio — PULP platform",
+ "design": {
+  "top": "apb_gpio",
+  "rtl": "designs/apb_gpio/rtl/apb_gpio.sv",
+  "spec": "designs/apb_gpio/docs/apb_gpio_regs.md",
+  "clock": {"port": "HCLK", "period_ns": 10.0}
+ },
+ "knowledge_sources": [
+  {"path": "designs/apb_gpio/docs", "kind": "spec"},
+  {"path": "designs/apb_gpio/rtl", "kind": "rtl"},
+  {"path": "designs/apb_gpio/tb", "kind": "testbench"}
+ ],
+ "testbench": {
+  "file": "designs/apb_gpio/tb/tb_apb_gpio.sv",
+  "metadata": "designs/apb_gpio/tests.json",
+  "regression_exclude": ["inttype_rfu_level"],
+  "smoke": ["reset_values", "dir_rw", "out_set_clr", "int_rise"],
+  "helper_tasks": ["apb_write", "apb_read", "idle", "check", "check_eq", "count_irq"],
+  "signals_note": "gpio_in drives the pads; irq is the DUT interrupt output; rd (logic [31:0]) and hi (int) are scratch variables declared in the testbench."
+ },
+ "fault_scenarios": [
+  {"id": "int_rise_bug", "label": "Injected RTL bug",
+   "description": "Rising-edge interrupts decode the falling edge. The spec is clear; the RTL is wrong.",
+   "kind": "rtl_edit", "pattern": "(s_is_int_rise\\[i\\] =.*?& )s_gpio_rise\\[i\\];", "replace": "\\1s_gpio_fall[i];",
+   "note": "Injected implementation bug: INTTYPE=01 decodes the falling edge, contradicting the spec's 'interrupt on rising edge'."},
+  {"id": "int_fall_bug", "label": "Injected RTL bug, falling edge",
+   "description": "Falling-edge interrupts decode the rising edge. Similar to a fix already in the knowledge base, but not the same.",
+   "kind": "rtl_edit", "pattern": "(s_is_int_fall\\[i\\] =.*?& )s_gpio_fall\\[i\\];", "replace": "\\1s_gpio_rise[i];",
+   "note": "Injected implementation bug: INTTYPE=00 decodes the rising edge, contradicting the spec's 'interrupt on falling edge'."},
+  {"id": "spec_gap", "label": "Spec gap probe",
+   "description": "Adds a test assuming INTTYPE=11 is a level interrupt. The spec only says \"RFU\".",
+   "kind": "enable_tests", "tests": ["inttype_rfu_level"],
+   "note": "Injected spec gap: optional test inttype_rfu_level expects INTTYPE=11 to be a level interrupt. The spec only says 'RFU'."}
+ ]
+}

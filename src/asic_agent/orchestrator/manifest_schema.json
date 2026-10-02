@@ -1,0 +1,102 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "asic-agent/manifest",
+ "title": "Pipeline run manifest",
+ "description": "runs/<run_id>/manifest.json, written by the orchestrator (src/asic_agent/orchestrator) after every stage. The driver reads attempt_count from here to enforce the retry cap (README: design rules). Draft: covers spec -> rtl -> verify_rtl; synth, verify_gate and signoff (with cache_key) are added when those stages are built.",
+ "type": "object",
+ "required": ["run_id", "target_block", "current_stage", "stages", "history"],
+ "properties": {
+  "run_id": {"type": "string"},
+  "target_block": {"type": "string"},
+  "upstream_rtl": {"type": "string", "description": "Never modified by a run."},
+  "working_rtl": {"type": "string", "description": "The run's own RTL copy; the RTL agent edits this."},
+  "llm": {"type": "string", "description": "backend/model used for diagnosis, or 'none'."},
+  "current_stage": {"enum": ["spec", "rtl", "verify_rtl", "synth", "verify_gate", "signoff", "done", "failed"]},
+  "artifacts_dir": {"type": "string"},
+  "stages": {
+   "type": "object",
+   "properties": {
+    "spec": {
+     "type": "object",
+     "required": ["spec_path", "approved", "revision"],
+     "properties": {
+      "spec_path": {"type": "string"},
+      "approved": {"type": "boolean"},
+      "revision": {"type": "integer", "minimum": 0}
+     }
+    },
+    "rtl": {
+     "type": "object",
+     "properties": {
+      "files_changed": {"type": "array", "items": {"type": "string"}},
+      "diff_path": {"type": ["string", "null"]}
+     }
+    },
+    "verify_rtl": {"$ref": "#/$defs/verify_stage"},
+    "verify_gate": {
+     "$ref": "#/$defs/verify_stage",
+     "description": "root_cause spec_ambiguity is invalid here (README: design rules)."
+    },
+    "synth": {"$ref": "#/$defs/cached_stage"},
+    "signoff": {"$ref": "#/$defs/cached_stage"}
+   }
+  },
+  "history": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": ["at", "event"],
+    "properties": {
+     "at": {"type": "string", "format": "date-time"},
+     "event": {"type": "string"}
+    }
+   }
+  }
+ },
+ "$defs": {
+  "root_cause": {"enum": ["implementation_bug", "spec_ambiguity", "unknown"]},
+  "route_to": {"enum": ["rtl_agent", "spec_agent", "human"]},
+  "verify_stage": {
+   "type": "object",
+   "required": ["attempt_count", "max_attempts"],
+   "properties": {
+    "attempt_count": {"type": "integer", "minimum": 0},
+    "max_attempts": {"const": 3},
+    "lint_passed": {"type": ["boolean", "null"]},
+    "build_ok": {"type": ["boolean", "null"]},
+    "test_cases": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+       "id": {"type": "string"},
+       "status": {"enum": ["pass", "fail"]},
+       "reason": {"type": "string"}
+      }
+     }
+    },
+    "last_failure": {
+     "type": ["object", "null"],
+     "properties": {
+      "failing_test_ids": {"type": "array", "items": {"type": "string"}},
+      "root_cause": {"$ref": "#/$defs/root_cause"},
+      "route_to": {"$ref": "#/$defs/route_to"},
+      "results_path": {"type": ["string", "null"], "description": "results.json fed to the test runner --retry-from"}
+     }
+    }
+   }
+  },
+  "cached_stage": {
+   "type": "object",
+   "properties": {
+    "cache_key": {
+     "type": ["string", "null"],
+     "description": "sha256 over RTL/netlist content + tool version + PDK version + constraint files (README: design rules). Never RTL alone."
+    },
+    "cache_hit": {"type": ["boolean", "null"]},
+    "reused_from_run": {"type": ["string", "null"]}
+   }
+  }
+ }
+}

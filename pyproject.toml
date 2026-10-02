@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asic-agent"
+version = "1.0.0"
+description = "Agents that take a hardware change request to a verified, signed-off design, with diagnose-and-route on test failures."
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+xlsx = ["openpyxl>=3.1"]
+
+[project.scripts]
+asic-agent = "asic_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+asic_agent = ["web/static/*", "web/openapi.json", "agents/skills/*/SKILL.md", "orchestrator/manifest_schema.json"]
